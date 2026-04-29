@@ -1,0 +1,32 @@
+[project]
+name = "ctr-gcn"
+version = "0.1.0"
+description = "CTR-GCN skeleton-based action recognition environment."
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "easydict>=1.13",
+    "h5py>=3.10",
+    "matplotlib>=3.8",
+    "numpy>=1.26",
+    "pyyaml>=6.0",
+    "scikit-learn>=1.4",
+    "tensorboardx>=2.6",
+    "torch==2.11.0",
+    "torchlight",
+    "torchvision==0.26.0",
+    "tqdm>=4.66",
+]
+
+[tool.uv]
+required-version = ">=0.9.0"
+
+[[tool.uv.index]]
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch-cu128" }
+torchlight = { path = "torchlight", editable = true }
+torchvision = { index = "pytorch-cu128" }

@@ -1,0 +1,50 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.python-version
+.venv/
+venv/
+env/
+.env
+.env.*
+.codex
+
+# Build and packaging
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Test and tooling caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Project outputs and datasets
+work_dir/
+runs/
+weights/
+*.pt
+*.pth
+*.pkl
+*.npy
+*.npz
+data/nturgbd_raw/
+data/NW-UCLA/all_sqe/
+
+# IDE
+.idea/
+.vscode/
+.vs/
+.cursor/
+*.swp
+*.swo
+*.suo
+*.user
+
+# OS
+.DS_Store
+Thumbs.db
