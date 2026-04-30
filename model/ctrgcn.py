@@ -250,9 +250,8 @@ class MultiScale_TemporalConv(nn.Module):
 class CTRGC(nn.Module):
     """通道级拓扑优化图卷积。
 
-    通过学习通道间的拓扑关系动态修正邻接矩阵，是 CTR-GCN 的核心组件。
-    对输入特征计算通道间相似度作为动态拓扑，与静态邻接矩阵融合后执行
-    图卷积。
+    为不同输出通道建模不同的关节关系拓扑，对输入特征计算通道间相似度
+    作为动态拓扑，与静态邻接矩阵融合后执行图卷积，是 CTR-GCN 的核心组件。
     """
 
     def __init__(
@@ -288,7 +287,7 @@ class CTRGC(nn.Module):
             elif isinstance(m, nn.BatchNorm2d):
                 bn_init(m, 1)
 
-    def forward(self, x: torch.Tensor, A: torch.Tensor | None = None, alpha: float = 1) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, A: torch.Tensor | None = None, alpha: torch.Tensor | float = 1) -> torch.Tensor:
         """执行通道级拓扑优化图卷积。
 
         Args:
@@ -529,6 +528,11 @@ class Model(nn.Module):
             A = self.graph.A
         else:
             raise ValueError("Must provide either `graph` import string or `adjacency` matrix.")
+
+        if A.ndim != 3:
+            raise ValueError(f"adjacency must be 3-dimensional (K, V, V), got shape {A.shape}")
+        if A.shape[-1] != num_point:
+            raise ValueError(f"adjacency last dim {A.shape[-1]} != num_point {num_point}")
 
         self.num_class = num_class
         self.num_point = num_point
