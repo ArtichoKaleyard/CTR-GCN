@@ -181,8 +181,8 @@ wheels = [
 
 [[package]]
 name = "foundry"
-version = "0.3.7"
-source = { git = "https://github.com/ArtichoKaleyard/Foundry?branch=main#0ef6731be5f8d78b223a63f1fd3197151e5b020f" }
+version = "0.3.8"
+source = { git = "https://github.com/ArtichoKaleyard/Foundry?branch=main#94c9139b626dd8176549ee9914d6b4ddb8031c0c" }
 dependencies = [
     { name = "hydraloom" },
     { name = "matplotlib" },
