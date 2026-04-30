@@ -239,7 +239,13 @@ def _resolve_ctrgcn_params(model_params: dict[str, Any]) -> dict[str, Any]:
     max_hop = int(graph_params.get("max_hop", 1))
     dilation = int(graph_params.get("dilation", 1))
 
-    graph = build_graph(layout=layout, strategy=strategy, max_hop=max_hop, dilation=dilation)
+    graph = build_graph(
+        layout=layout,
+        strategy=strategy,
+        max_hop=max_hop,
+        dilation=dilation,
+        normalization=graph_params.get("normalization", "partition-wise"),
+    )
     adjacency = graph.adjacency  # (3, V, V) ndarray
 
     return {**_resolve_common_model_params(model_params), "adjacency": adjacency}
