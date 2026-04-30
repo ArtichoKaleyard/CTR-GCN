@@ -33,28 +33,54 @@ def import_class(name: str) -> Any:
     return mod
 
 
-def conv_branch_init(conv, branches):
+def conv_branch_init(conv: nn.Conv2d, branches: int) -> None:
+    """按分支数量初始化单个图卷积分支。
+
+    Args:
+        conv: 待初始化的卷积层。
+        branches: 后续会求和的图子集或分支数量。
+    """
     weight = conv.weight
     n = weight.size(0)
     k1 = weight.size(1)
     k2 = weight.size(2)
     nn.init.normal_(weight, 0, math.sqrt(2. / (n * k1 * k2 * branches)))
-    nn.init.constant_(conv.bias, 0)
+    if conv.bias is not None:
+        nn.init.constant_(conv.bias, 0)
 
 
-def conv_init(conv):
+def conv_init(conv: nn.Conv2d) -> None:
+    """使用 Kaiming 正态分布初始化卷积层。
+
+    Args:
+        conv: 待初始化的卷积层。
+    """
     if conv.weight is not None:
         nn.init.kaiming_normal_(conv.weight, mode='fan_out')
     if conv.bias is not None:
         nn.init.constant_(conv.bias, 0)
 
 
-def bn_init(bn, scale):
+def bn_init(bn: nn.BatchNorm1d | nn.BatchNorm2d, scale: float) -> None:
+    """初始化 BatchNorm 的仿射参数。
+
+    Args:
+        bn: 待初始化的 BatchNorm 层。
+        scale: 写入 affine weight 的常数缩放值。
+    """
     nn.init.constant_(bn.weight, scale)
     nn.init.constant_(bn.bias, 0)
 
 
-def weights_init(m):
+def weights_init(m: nn.Module) -> None:
+    """递归初始化模块中的卷积和 BatchNorm 层。
+
+    Conv 层使用 Kaiming 正态初始化，BatchNorm 层使用正态分布
+    初始化 weight 并将 bias 置零。
+
+    Args:
+        m: 待初始化的模块（通常通过 ``nn.Module.apply`` 递归传入）。
+    """
     classname = m.__class__.__name__
     if classname.find('Conv') != -1:
         if hasattr(m, 'weight'):
@@ -69,7 +95,28 @@ def weights_init(m):
 
 
 class TemporalConv(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size, stride=1, dilation=1):
+    """单分支时间卷积块（Conv2d + BatchNorm2d）。
+
+    卷积只在时间维度上滑动，空间维固定为 1。
+    """
+
+    def __init__(
+        self,
+        in_channels: int,
+        out_channels: int,
+        kernel_size: int,
+        stride: int = 1,
+        dilation: int = 1,
+    ) -> None:
+        """创建时间卷积块。
+
+        Args:
+            in_channels: 输入通道数。
+            out_channels: 输出通道数。
+            kernel_size: 时间维卷积核大小。
+            stride: 时间维步幅。
+            dilation: 时间维膨胀系数。
+        """
         super(TemporalConv, self).__init__()
         pad = (kernel_size + (kernel_size-1) * (dilation-1) - 1) // 2
         self.conv = nn.Conv2d(
@@ -82,21 +129,48 @@ class TemporalConv(nn.Module):
 
         self.bn = nn.BatchNorm2d(out_channels)
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """执行时间卷积。
+
+        Args:
+            x: 形状为 ``(N, C, T, V)`` 的输入张量。
+
+        Returns:
+            形状为 ``(N, out_channels, T_out, V)`` 的输出张量。
+        """
         x = self.conv(x)
         x = self.bn(x)
         return x
 
 
 class MultiScale_TemporalConv(nn.Module):
-    def __init__(self,
-                 in_channels,
-                 out_channels,
-                 kernel_size=3,
-                 stride=1,
-                 dilations=[1,2,3,4],
-                 residual=True,
-                 residual_kernel_size=1):
+    """多尺度时间卷积块。
+
+    包含多个不同膨胀率的时间卷积分支、一个 MaxPool 分支和
+    一个 1x1 分支，所有分支输出沿通道维拼接后与残差相加。
+    """
+    def __init__(
+        self,
+        in_channels: int,
+        out_channels: int,
+        kernel_size: int | list[int] = 3,
+        stride: int = 1,
+        dilations: list[int] = [1, 2, 3, 4],
+        residual: bool = True,
+        residual_kernel_size: int = 1,
+    ) -> None:
+        """创建多尺度时间卷积块。
+
+        Args:
+            in_channels: 输入通道数。
+            out_channels: 输出通道数，必须能被分支总数整除。
+            kernel_size: 时间维卷积核大小，可为单个整数或与 dilations 等长
+                的列表。
+            stride: 时间维步幅。
+            dilations: 各膨胀卷积分支的膨胀系数列表。
+            residual: 是否启用残差连接。
+            residual_kernel_size: 残差路径上的时间卷积核大小。
+        """
 
         super().__init__()
         assert out_channels % (len(dilations) + 2) == 0, '# out channels should be multiples of # branches'
@@ -153,8 +227,15 @@ class MultiScale_TemporalConv(nn.Module):
         # initialize
         self.apply(weights_init)
 
-    def forward(self, x):
-        # Input dim: (N,C,T,V)
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """执行多尺度时间卷积。
+
+        Args:
+            x: 形状为 ``(N, C, T, V)`` 的输入张量。
+
+        Returns:
+            形状为 ``(N, out_channels, T_out, V)`` 的输出张量。
+        """
         res = self.residual(x)
         branch_outs = []
         for tempconv in self.branches:
@@ -167,7 +248,28 @@ class MultiScale_TemporalConv(nn.Module):
 
 
 class CTRGC(nn.Module):
-    def __init__(self, in_channels, out_channels, rel_reduction=8, mid_reduction=1):
+    """通道级拓扑优化图卷积。
+
+    通过学习通道间的拓扑关系动态修正邻接矩阵，是 CTR-GCN 的核心组件。
+    对输入特征计算通道间相似度作为动态拓扑，与静态邻接矩阵融合后执行
+    图卷积。
+    """
+
+    def __init__(
+        self,
+        in_channels: int,
+        out_channels: int,
+        rel_reduction: int = 8,
+        mid_reduction: int = 1,
+    ) -> None:
+        """创建通道级拓扑优化图卷积层。
+
+        Args:
+            in_channels: 输入通道数。
+            out_channels: 输出通道数。
+            rel_reduction: 关系通道数的除数因子。
+            mid_reduction: 中间通道除数因子（保留参数，当前未使用）。
+        """
         super(CTRGC, self).__init__()
         self.in_channels = in_channels
         self.out_channels = out_channels
@@ -186,7 +288,17 @@ class CTRGC(nn.Module):
             elif isinstance(m, nn.BatchNorm2d):
                 bn_init(m, 1)
 
-    def forward(self, x, A=None, alpha=1):
+    def forward(self, x: torch.Tensor, A: torch.Tensor | None = None, alpha: float = 1) -> torch.Tensor:
+        """执行通道级拓扑优化图卷积。
+
+        Args:
+            x: 形状为 ``(N, C, T, V)`` 的输入张量。
+            A: 形状为 ``(V, V)`` 的静态邻接矩阵子集，可为 ``None``。
+            alpha: 动态拓扑缩放系数。
+
+        Returns:
+            形状为 ``(N, out_channels, T, V)`` 的输出张量。
+        """
         x1, x2, x3 = self.conv1(x).mean(-2), self.conv2(x).mean(-2), self.conv3(x)
         x1 = self.tanh(x1.unsqueeze(-1) - x2.unsqueeze(-2))
         x1 = self.conv4(x1) * alpha + (A.unsqueeze(0).unsqueeze(0) if A is not None else 0)  # N,C,V,V
@@ -194,7 +306,17 @@ class CTRGC(nn.Module):
         return x1
 
 class unit_tcn(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size=9, stride=1):
+    """CTR-GCN 使用的时间卷积块。"""
+
+    def __init__(self, in_channels: int, out_channels: int, kernel_size: int = 9, stride: int = 1) -> None:
+        """创建时间卷积块。
+
+        Args:
+            in_channels: 输入通道数。
+            out_channels: 输出通道数。
+            kernel_size: 时间维卷积核大小。
+            stride: 时间维步幅。
+        """
         super(unit_tcn, self).__init__()
         pad = int((kernel_size - 1) / 2)
         self.conv = nn.Conv2d(in_channels, out_channels, kernel_size=(kernel_size, 1), padding=(pad, 0),
@@ -205,13 +327,44 @@ class unit_tcn(nn.Module):
         conv_init(self.conv)
         bn_init(self.bn, 1)
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """执行时间卷积和 BatchNorm。
+
+        Args:
+            x: 形状为 ``(N, C, T, V)`` 的输入张量。
+
+        Returns:
+            形状为 ``(N, out_channels, T_out, V)`` 的输出张量。
+        """
         x = self.bn(self.conv(x))
         return x
 
 
 class unit_gcn(nn.Module):
-    def __init__(self, in_channels, out_channels, A, coff_embedding=4, adaptive=True, residual=True):
+    """CTR-GCN 使用的图卷积块。
+
+    内部由多个 CTRGC 子模块组成，每个子模块对应邻接矩阵的一个子集。
+    支持自适应拓扑学习和残差连接。
+    """
+    def __init__(
+        self,
+        in_channels: int,
+        out_channels: int,
+        A: np.ndarray,
+        coff_embedding: int = 4,
+        adaptive: bool = True,
+        residual: bool = True,
+    ) -> None:
+        """创建 CTR-GCN 图卷积块。
+
+        Args:
+            in_channels: 输入通道数。
+            out_channels: 输出通道数。
+            A: 初始邻接矩阵，形状为 ``(K, V, V)``。
+            coff_embedding: 中间通道压缩系数。
+            adaptive: 是否把邻接矩阵作为可学习参数。
+            residual: 是否启用残差连接。
+        """
         super(unit_gcn, self).__init__()
         inter_channels = out_channels // coff_embedding
         self.inter_c = inter_channels
@@ -248,7 +401,15 @@ class unit_gcn(nn.Module):
                 bn_init(m, 1)
         bn_init(self.bn, 1e-6)
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """对所有邻接矩阵子集执行 CTR-GC 图卷积。
+
+        Args:
+            x: 形状为 ``(N, C, T, V)`` 的输入张量。
+
+        Returns:
+            形状为 ``(N, out_channels, T, V)`` 的输出张量。
+        """
         y = None
         if self.adaptive:
             A = self.PA
@@ -265,7 +426,35 @@ class unit_gcn(nn.Module):
 
 
 class TCN_GCN_unit(nn.Module):
-    def __init__(self, in_channels, out_channels, A, stride=1, residual=True, adaptive=True, kernel_size=5, dilations=[1,2]):
+    """CTR-GCN 网络使用的残差图时序块。
+
+    由图卷积（unit_gcn）和多尺度时间卷积（MultiScale_TemporalConv）
+    组合而成的残差块。
+    """
+
+    def __init__(
+        self,
+        in_channels: int,
+        out_channels: int,
+        A: np.ndarray,
+        stride: int = 1,
+        residual: bool = True,
+        adaptive: bool = True,
+        kernel_size: int = 5,
+        dilations: list[int] = [1, 2],
+    ) -> None:
+        """创建残差图时序块。
+
+        Args:
+            in_channels: 输入通道数。
+            out_channels: 输出通道数。
+            A: 初始邻接矩阵，形状为 ``(K, V, V)``。
+            stride: 时间维下采样步幅。
+            residual: 是否启用残差分支。
+            adaptive: 图卷积块是否学习邻接矩阵参数。
+            kernel_size: 多尺度时间卷积的卷积核大小。
+            dilations: 多尺度时间卷积分支的膨胀系数列表。
+        """
         super(TCN_GCN_unit, self).__init__()
         self.gcn1 = unit_gcn(in_channels, out_channels, A, adaptive=adaptive)
         self.tcn1 = MultiScale_TemporalConv(out_channels, out_channels, kernel_size=kernel_size, stride=stride, dilations=dilations,
@@ -280,7 +469,15 @@ class TCN_GCN_unit(nn.Module):
         else:
             self.residual = unit_tcn(in_channels, out_channels, kernel_size=1, stride=stride)
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """执行残差图时序块。
+
+        Args:
+            x: 形状为 ``(N, C, T, V)`` 的输入张量。
+
+        Returns:
+            形状为 ``(N, out_channels, T_out, V)`` 的输出张量。
+        """
         y = self.relu(self.tcn1(self.gcn1(x)) + self.residual(x))
         return y
 
