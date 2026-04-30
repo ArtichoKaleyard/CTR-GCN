@@ -24,6 +24,7 @@ dist/
 htmlcov/
 
 # Project outputs and datasets
+artifacts/
 work_dir/
 runs/
 weights/
@@ -40,6 +41,7 @@ data/NW-UCLA/all_sqe/
 .vscode/
 .vs/
 .cursor/
+.claude/
 *.swp
 *.swo
 *.suo

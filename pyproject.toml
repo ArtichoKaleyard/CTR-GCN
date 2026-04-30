@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.12,<3.13"
 dependencies = [
     "easydict>=1.13",
+    "foundry[logging]>=0.3.7",
     "h5py>=3.10",
     "matplotlib>=3.8",
     "numpy>=1.26",
@@ -13,7 +14,6 @@ dependencies = [
     "scikit-learn>=1.4",
     "tensorboardx>=2.6",
     "torch==2.11.0",
-    "torchlight",
     "torchvision==0.26.0",
     "tqdm>=4.66",
 ]
@@ -27,6 +27,6 @@ url = "https://download.pytorch.org/whl/cu128"
 explicit = true
 
 [tool.uv.sources]
+foundry = { git = "https://github.com/ArtichoKaleyard/Foundry", branch = "main" }
 torch = { index = "pytorch-cu128" }
-torchlight = { path = "torchlight", editable = true }
 torchvision = { index = "pytorch-cu128" }

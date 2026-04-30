@@ -3,6 +3,12 @@ revision = 3
 requires-python = "==3.12.*"
 
 [[package]]
+name = "antlr4-python3-runtime"
+version = "4.9.3"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/3e/38/7859ff46355f76f8d19459005ca000b6e7012f2f1ca597746cbcd1fbfe5e/antlr4-python3-runtime-4.9.3.tar.gz", hash = "sha256:f224469b4168294902bb1efa80a8bf7855f24c99aef99cbefc1bcd3cce77881b", size = 117034, upload-time = "2021-11-06T17:52:23.524Z" }
+
+[[package]]
 name = "colorama"
 version = "0.4.6"
 source = { registry = "https://pypi.org/simple" }
@@ -39,6 +45,7 @@ version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
     { name = "easydict" },
+    { name = "foundry", extra = ["logging"] },
     { name = "h5py" },
     { name = "matplotlib" },
     { name = "numpy" },
@@ -46,7 +53,6 @@ dependencies = [
     { name = "scikit-learn" },
     { name = "tensorboardx" },
     { name = "torch" },
-    { name = "torchlight" },
     { name = "torchvision" },
     { name = "tqdm" },
 ]
@@ -54,6 +60,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "easydict", specifier = ">=1.13" },
+    { name = "foundry", extras = ["logging"], git = "https://github.com/ArtichoKaleyard/Foundry?branch=main" },
     { name = "h5py", specifier = ">=3.10" },
     { name = "matplotlib", specifier = ">=3.8" },
     { name = "numpy", specifier = ">=1.26" },
@@ -61,7 +68,6 @@ requires-dist = [
     { name = "scikit-learn", specifier = ">=1.4" },
     { name = "tensorboardx", specifier = ">=2.6" },
     { name = "torch", specifier = "==2.11.0", index = "https://download.pytorch.org/whl/cu128" },
-    { name = "torchlight", editable = "torchlight" },
     { name = "torchvision", specifier = "==0.26.0", index = "https://download.pytorch.org/whl/cu128" },
     { name = "tqdm", specifier = ">=4.66" },
 ]
@@ -174,6 +180,23 @@ wheels = [
 ]
 
 [[package]]
+name = "foundry"
+version = "0.3.7"
+source = { git = "https://github.com/ArtichoKaleyard/Foundry?branch=main#0ef6731be5f8d78b223a63f1fd3197151e5b020f" }
+dependencies = [
+    { name = "hydraloom" },
+    { name = "matplotlib" },
+    { name = "pyyaml" },
+    { name = "torch" },
+    { name = "tqdm" },
+]
+
+[package.optional-dependencies]
+logging = [
+    { name = "herald" },
+]
+
+[[package]]
 name = "fsspec"
 version = "2026.3.0"
 source = { registry = "https://pypi.org/simple" }
@@ -199,6 +222,34 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/51/d7/ab693274f1bd7e8c5f9fdd6c7003a88d59bedeaf8752716a55f532924fbb/h5py-3.16.0-cp312-cp312-musllinux_1_2_x86_64.whl", hash = "sha256:2b2c02b0a160faed5fb33f1ba8a264a37ee240b22e049ecc827345d0d9043074", size = 5419216, upload-time = "2026-03-06T13:48:13.322Z" },
     { url = "https://files.pythonhosted.org/packages/03/c1/0976b235cf29ead553e22f2fb6385a8252b533715e00d0ae52ed7b900582/h5py-3.16.0-cp312-cp312-win_amd64.whl", hash = "sha256:96b422019a1c8975c2d5dadcf61d4ba6f01c31f92bbde6e4649607885fe502d6", size = 3182868, upload-time = "2026-03-06T13:48:15.759Z" },
     { url = "https://files.pythonhosted.org/packages/14/d9/866b7e570b39070f92d47b0ff1800f0f8239b6f9e45f02363d7112336c1f/h5py-3.16.0-cp312-cp312-win_arm64.whl", hash = "sha256:39c2838fb1e8d97bcf1755e60ad1f3dd76a7b2a475928dc321672752678b96db", size = 2653286, upload-time = "2026-03-06T13:48:17.279Z" },
+]
+
+[[package]]
+name = "herald"
+version = "0.5.1"
+source = { git = "https://github.com/ArtichoKaleyard/Herald?subdirectory=packages%2Fherald#9963032a077b7258f5729e6c73020ac1760b78eb" }
+
+[[package]]
+name = "hydra-core"
+version = "1.3.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "antlr4-python3-runtime" },
+    { name = "omegaconf" },
+    { name = "packaging" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/6d/8e/07e42bc434a847154083b315779b0a81d567154504624e181caf2c71cd98/hydra-core-1.3.2.tar.gz", hash = "sha256:8a878ed67216997c3e9d88a8e72e7b4767e81af37afb4ea3334b269a4390a824", size = 3263494, upload-time = "2023-02-23T18:33:43.03Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/c6/50/e0edd38dcd63fb26a8547f13d28f7a008bc4a3fd4eb4ff030673f22ad41a/hydra_core-1.3.2-py3-none-any.whl", hash = "sha256:fa0238a9e31df3373b35b0bfb672c34cc92718d21f81311d8996a16de1141d8b", size = 154547, upload-time = "2023-02-23T18:33:40.801Z" },
+]
+
+[[package]]
+name = "hydraloom"
+version = "0.2.1"
+source = { git = "https://github.com/ArtichoKaleyard/HydraLoom.git?tag=v0.2.1#ab8c1d44e42866422e5ba5ce9d83c71f20b44d28" }
+dependencies = [
+    { name = "hydra-core" },
+    { name = "omegaconf" },
 ]
 
 [[package]]
@@ -481,6 +532,19 @@ wheels = [
 ]
 
 [[package]]
+name = "omegaconf"
+version = "2.3.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "antlr4-python3-runtime" },
+    { name = "pyyaml" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/09/48/6388f1bb9da707110532cb70ec4d2822858ddfb44f1cdf1233c20a80ea4b/omegaconf-2.3.0.tar.gz", hash = "sha256:d5d4b6d29955cc50ad50c46dc269bcd92c6e00f5f90d23ab5fee7bfca4ba4cc7", size = 3298120, upload-time = "2022-12-08T20:59:22.753Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/e3/94/1843518e420fa3ed6919835845df698c7e27e183cb997394e4a670973a65/omegaconf-2.3.0-py3-none-any.whl", hash = "sha256:7b4df175cdb08ba400f45cae3bdcae7ba8365db4d165fc65fd04b050ab63b46b", size = 79500, upload-time = "2022-12-08T20:59:19.686Z" },
+]
+
+[[package]]
 name = "packaging"
 version = "26.2"
 source = { registry = "https://pypi.org/simple" }
@@ -681,11 +745,6 @@ wheels = [
     { url = "https://download-r2.pytorch.org/whl/cu128/torch-2.11.0%2Bcu128-cp312-cp312-manylinux_2_28_x86_64.whl", hash = "sha256:d252cf975fb18c94a85336323ad425f473df56dab35a44b00399bd70c7a3b997", upload-time = "2026-04-27T17:42:06Z" },
     { url = "https://download-r2.pytorch.org/whl/cu128/torch-2.11.0%2Bcu128-cp312-cp312-win_amd64.whl", hash = "sha256:7c78215c3af4f62e63f2b2e360f1722fc719b0853c7ac22666483d9810613a4c", upload-time = "2026-04-27T17:43:49Z" },
 ]
-
-[[package]]
-name = "torchlight"
-version = "1.0"
-source = { editable = "torchlight" }
 
 [[package]]
 name = "torchvision"

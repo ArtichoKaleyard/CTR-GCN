@@ -1,12 +1,31 @@
+"""用于骨架动作识别的 CTR-GCN 模型定义。
+
+本实现保留 ICCV 2021 CTR-GCN 的原始网络结构，同时移除旧式 PyTorch 设备
+处理逻辑。模型仍支持原仓库的 graph 导入路径构造方式，也支持 Foundry 通过
+``adjacency`` 参数注入预构建邻接矩阵。
+"""
+
 import math
-import pdb
+from typing import Any
 
 import numpy as np
 import torch
 import torch.nn as nn
-from torch.autograd import Variable
 
-def import_class(name):
+
+def import_class(name: str) -> Any:
+    """从点分 Python 路径导入对象。
+
+    Args:
+        name: 点分导入路径，例如 ``"graph.ntu_rgb_d.Graph"``。
+
+    Returns:
+        导入得到的 Python 对象。
+
+    Raises:
+        AttributeError: 当模块后的任一属性组件不存在时抛出。
+        ImportError: 当根模块无法导入时抛出。
+    """
     components = name.split('.')
     mod = __import__(components[0])
     for comp in components[1:]:
@@ -85,7 +104,7 @@ class MultiScale_TemporalConv(nn.Module):
         # Multiple branches of temporal convolution
         self.num_branches = len(dilations) + 2
         branch_channels = out_channels // self.num_branches
-        if type(kernel_size) == list:
+        if isinstance(kernel_size, list):
             assert len(kernel_size) == len(dilations)
         else:
             kernel_size = [kernel_size]*len(dilations)
@@ -115,7 +134,7 @@ class MultiScale_TemporalConv(nn.Module):
             nn.BatchNorm2d(branch_channels),
             nn.ReLU(inplace=True),
             nn.MaxPool2d(kernel_size=(3,1), stride=(stride,1), padding=(1,0)),
-            nn.BatchNorm2d(branch_channels)  # 为什么还要加bn
+            nn.BatchNorm2d(branch_channels)
         ))
 
         self.branches.append(nn.Sequential(
@@ -154,10 +173,8 @@ class CTRGC(nn.Module):
         self.out_channels = out_channels
         if in_channels == 3 or in_channels == 9:
             self.rel_channels = 8
-            self.mid_channels = 16
         else:
             self.rel_channels = in_channels // rel_reduction
-            self.mid_channels = in_channels // mid_reduction
         self.conv1 = nn.Conv2d(self.in_channels, self.rel_channels, kernel_size=1)
         self.conv2 = nn.Conv2d(self.in_channels, self.rel_channels, kernel_size=1)
         self.conv3 = nn.Conv2d(self.in_channels, self.out_channels, kernel_size=1)
@@ -219,10 +236,9 @@ class unit_gcn(nn.Module):
         if self.adaptive:
             self.PA = nn.Parameter(torch.from_numpy(A.astype(np.float32)))
         else:
-            self.A = Variable(torch.from_numpy(A.astype(np.float32)), requires_grad=False)
+            self.register_buffer("A", torch.from_numpy(A.astype(np.float32)))
         self.alpha = nn.Parameter(torch.zeros(1))
         self.bn = nn.BatchNorm2d(out_channels)
-        self.soft = nn.Softmax(-2)
         self.relu = nn.ReLU(inplace=True)
 
         for m in self.modules():
@@ -237,14 +253,13 @@ class unit_gcn(nn.Module):
         if self.adaptive:
             A = self.PA
         else:
-            A = self.A.cuda(x.get_device())
+            A = self.A
         for i in range(self.num_subset):
             z = self.convs[i](x, A[i], self.alpha)
             y = z + y if y is not None else z
         y = self.bn(y)
         y += self.down(x)
         y = self.relu(y)
-
 
         return y
 
@@ -271,17 +286,52 @@ class TCN_GCN_unit(nn.Module):
 
 
 class Model(nn.Module):
-    def __init__(self, num_class=60, num_point=25, num_person=2, graph=None, graph_args=dict(), in_channels=3,
-                 drop_out=0, adaptive=True):
-        super(Model, self).__init__()
+    """Channel-wise Topology Refinement GCN 分类器。
 
-        if graph is None:
-            raise ValueError()
-        else:
+    构造器同时支持原仓库 API（``graph="graph.ntu_rgb_d.Graph"``）和
+    Foundry 接入路径（``adjacency=<ndarray>``）。调用时必须提供 ``graph``
+    或 ``adjacency`` 之一。
+    """
+
+    def __init__(
+        self,
+        num_class: int = 60,
+        num_point: int = 25,
+        num_person: int = 2,
+        graph: str | None = None,
+        graph_args: dict[str, Any] | None = None,
+        in_channels: int = 3,
+        drop_out: float = 0,
+        adaptive: bool = True,
+        adjacency: np.ndarray | torch.Tensor | None = None,
+    ) -> None:
+        """创建 CTR-GCN 分类器。
+
+        Args:
+            num_class: 动作类别数。
+            num_point: 骨架关节点数量。
+            num_person: 每个样本最多包含的人数。
+            graph: 可选的旧式图类导入路径。
+            graph_args: 传给旧式图类的可选关键字参数。
+            in_channels: 每个关节点的输入通道数。
+            drop_out: 分类器前的 dropout 概率。``0`` 表示关闭 dropout。
+            adaptive: 图卷积块是否学习通道级拓扑修正。
+            adjacency: 可选的显式邻接矩阵，形状为 ``(K, V, V)``。
+
+        Raises:
+            ValueError: 当 ``graph`` 和 ``adjacency`` 都未提供时抛出。
+        """
+        super(Model, self).__init__()
+        graph_args = {} if graph_args is None else graph_args
+
+        if adjacency is not None:
+            A = adjacency if isinstance(adjacency, np.ndarray) else adjacency.detach().cpu().numpy()
+        elif graph is not None:
             Graph = import_class(graph)
             self.graph = Graph(**graph_args)
-
-        A = self.graph.A # 3,25,25
+            A = self.graph.A
+        else:
+            raise ValueError("Must provide either `graph` import string or `adjacency` matrix.")
 
         self.num_class = num_class
         self.num_point = num_point
@@ -307,7 +357,16 @@ class Model(nn.Module):
         else:
             self.drop_out = lambda x: x
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """执行 CTR-GCN 分类前向。
+
+        Args:
+            x: 形状为 ``(N, C, T, V, M)`` 的骨架张量。为了兼容旧预处理路径，
+                也接受展平的 ``(N, T, V*C)`` 张量。
+
+        Returns:
+            形状为 ``(N, num_class)`` 的分类 logits。
+        """
         if len(x.shape) == 3:
             N, T, VC = x.shape
             x = x.view(N, T, self.num_point, -1).permute(0, 3, 1, 2).contiguous().unsqueeze(-1)
