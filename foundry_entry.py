@@ -31,6 +31,7 @@ Examples:
 from __future__ import annotations
 
 from dataclasses import replace
+from pathlib import Path
 from typing import Any
 
 import torch
@@ -40,6 +41,7 @@ from foundry import register_model
 from foundry.core.config import RunConfig
 from foundry.core.registry import DatasetSpec
 from foundry.projects.skeleton import compile_skeleton_run_config
+from foundry.projects.skeleton.compiler import load_skeleton_experiment_config
 from foundry.projects.skeleton.graphs import build_graph
 from foundry.projects.skeleton.types import SkeletonExperimentConfig
 
@@ -49,89 +51,44 @@ from model.ctrgcn import Model as CTRGCNModel
 MODEL_NAME = "ctrgcn"
 BASELINE_MODEL_NAME = "baseline"
 
-# 预置实验配置
+# 预置实验配置 —— 全部从 YAML 文件加载，确保每个字段显式锚定
 
-CTRGCN_EXPERIMENTS: dict[str, SkeletonExperimentConfig] = {
-    "ntu60_xsub": SkeletonExperimentConfig(
-        data_root="./data/ntu",
-        output_dir="./artifacts/skeleton/ntu60_ctrgcn_xsub_joint",
-        dataset="ntu60",
-        protocol="xsub",
-        stream="joint",
-        model="ctrgcn",
-        graph_layout="ntu-rgb+d",
-        graph_strategy="spatial",
-        epochs=65,
-        dataset_params={"data_file": "NTU60_CS.npz"},
-        loader={"batch_size": 64, "num_workers": 8, "persistent_workers": True},
-        optimizer={"name": "sgd", "learning_rate": 0.1, "weight_decay": 0.0004, "params": {"momentum": 0.9, "nesterov": True}},
-        scheduler={"name": "multistep", "params": {"milestones": [35, 55], "gamma": 0.1}},
-        runtime={"device": "cuda", "seed": 1, "checkpoint_interval": 1},
-    ),
-    "ntu60_xview": SkeletonExperimentConfig(
-        data_root="./data/ntu",
-        output_dir="./artifacts/skeleton/ntu60_ctrgcn_xview_joint",
-        dataset="ntu60",
-        protocol="xview",
-        stream="joint",
-        model="ctrgcn",
-        graph_layout="ntu-rgb+d",
-        graph_strategy="spatial",
-        epochs=65,
-        dataset_params={"data_file": "NTU60_CV.npz"},
-        loader={"batch_size": 64, "num_workers": 8, "persistent_workers": True},
-        optimizer={"name": "sgd", "learning_rate": 0.1, "weight_decay": 0.0004, "params": {"momentum": 0.9, "nesterov": True}},
-        scheduler={"name": "multistep", "params": {"milestones": [35, 55], "gamma": 0.1}},
-        runtime={"device": "cuda", "seed": 1, "checkpoint_interval": 1},
-    ),
-    "ntu120_xsub": SkeletonExperimentConfig(
-        data_root="./data/ntu120",
-        output_dir="./artifacts/skeleton/ntu120_ctrgcn_xsub_joint",
-        dataset="ntu120",
-        protocol="xsub",
-        stream="joint",
-        model="ctrgcn",
-        graph_layout="ntu-rgb+d",
-        graph_strategy="spatial",
-        epochs=65,
-        dataset_params={"data_file": "NTU120_CSub.npz"},
-        loader={"batch_size": 64, "num_workers": 8, "persistent_workers": True},
-        optimizer={"name": "sgd", "learning_rate": 0.1, "weight_decay": 0.0004, "params": {"momentum": 0.9, "nesterov": True}},
-        scheduler={"name": "multistep", "params": {"milestones": [35, 55], "gamma": 0.1}},
-        runtime={"device": "cuda", "seed": 1, "checkpoint_interval": 1},
-    ),
-    "ntu120_xset": SkeletonExperimentConfig(
-        data_root="./data/ntu120",
-        output_dir="./artifacts/skeleton/ntu120_ctrgcn_xset_joint",
-        dataset="ntu120",
-        protocol="xset",
-        stream="joint",
-        model="ctrgcn",
-        graph_layout="ntu-rgb+d",
-        graph_strategy="spatial",
-        epochs=65,
-        dataset_params={"data_file": "NTU120_CSet.npz"},
-        loader={"batch_size": 64, "num_workers": 8, "persistent_workers": True},
-        optimizer={"name": "sgd", "learning_rate": 0.1, "weight_decay": 0.0004, "params": {"momentum": 0.9, "nesterov": True}},
-        scheduler={"name": "multistep", "params": {"milestones": [35, 55], "gamma": 0.1}},
-        runtime={"device": "cuda", "seed": 1, "checkpoint_interval": 1},
-    ),
-    "nw_ucla": SkeletonExperimentConfig(
-        data_root="./data/NW-UCLA",
-        output_dir="./artifacts/skeleton/nw_ucla_ctrgcn_xview_joint",
-        dataset="nw_ucla",
-        protocol="xview",
-        stream="joint",
-        model="ctrgcn",
-        graph_layout="nw-ucla",
-        graph_strategy="spatial",
-        epochs=65,
-        loader={"batch_size": 16, "num_workers": 8, "persistent_workers": True},
-        optimizer={"name": "sgd", "learning_rate": 0.1, "weight_decay": 0.0001, "params": {"momentum": 0.9, "nesterov": True}},
-        scheduler={"name": "multistep", "params": {"milestones": [50], "gamma": 0.1}},
-        runtime={"device": "cuda", "seed": 1, "checkpoint_interval": 1},
-    ),
+_EXPERIMENTS_DIR = Path(__file__).resolve().parent / "conf" / "experiments"
+
+_EXPERIMENT_FILES = {
+    "ntu60_xsub": "ntu60_xsub_joint.yaml",
+    "ntu60_xview": "ntu60_xview_joint.yaml",
+    "ntu120_xsub": "ntu120_xsub_joint.yaml",
+    "ntu120_xset": "ntu120_xset_joint.yaml",
+    "nw_ucla": "nw_ucla_xview_joint.yaml",
+    "ntu60_xsub_bone": "ntu60_xsub_bone.yaml",
+    "ntu60_xview_bone": "ntu60_xview_bone.yaml",
+    "ntu120_xsub_bone": "ntu120_xsub_bone.yaml",
+    "ntu120_xset_bone": "ntu120_xset_bone.yaml",
+    "nw_ucla_bone": "nw_ucla_xview_bone.yaml",
 }
+
+
+def _load_experiments() -> dict[str, SkeletonExperimentConfig]:
+    """从 YAML 配置文件加载全部预置实验。
+
+    Returns:
+        以实验名为键的实验配置字典。每个配置由
+        ``load_skeleton_experiment_config`` 解析得到。
+
+    Raises:
+        FileNotFoundError: 当任意配置文件缺失时抛出。
+    """
+    experiments: dict[str, SkeletonExperimentConfig] = {}
+    for name, filename in _EXPERIMENT_FILES.items():
+        path = _EXPERIMENTS_DIR / filename
+        if not path.is_file():
+            raise FileNotFoundError(f"实验配置文件不存在: {path}")
+        experiments[name] = load_skeleton_experiment_config(str(path))
+    return experiments
+
+
+CTRGCN_EXPERIMENTS: dict[str, SkeletonExperimentConfig] = _load_experiments()
 
 
 def get_ctrgcn_run_config(name: str) -> RunConfig:

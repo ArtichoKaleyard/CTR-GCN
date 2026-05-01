@@ -1,0 +1,33 @@
+data_root: ./data/ntu
+output_dir: ./artifacts/skeleton/ntu60_ctrgcn_xview_joint
+dataset: ntu60
+protocol: xview
+stream: joint
+model: ctrgcn
+graph_layout: ntu-rgb+d
+graph_strategy: spatial
+graph_normalization: partition-wise
+epochs: 65
+dataset_params:
+  data_file: data.npy
+  label_file: labels.pkl
+loader:
+  batch_size: 64
+  num_workers: 8
+  persistent_workers: true
+optimizer:
+  name: sgd
+  learning_rate: 0.1
+  weight_decay: 0.0004
+  params:
+    momentum: 0.9
+    nesterov: true
+scheduler:
+  name: multistep
+  params:
+    milestones: [35, 55]
+    gamma: 0.1
+runtime:
+  device: cuda
+  seed: 1
+  checkpoint_interval: 1
