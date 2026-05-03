@@ -58,7 +58,9 @@ run_config = get_ctrgcn_run_config("ntu60_xsub")
 train_once(run_config)
 ```
 
-Available presets: `ntu60_xsub`, `ntu60_xview`, `ntu120_xsub`, `ntu120_xset`, `nw_ucla`.
+Available presets: `ntu60_xsub`, `ntu60_xsub_bone`, `ntu60_xsub_joint_motion`,
+`ntu60_xsub_bone_motion`, `ntu60_xview`, `ntu120_xsub`, `ntu120_xset`, `nw_ucla`.
+Topology ablation presets: `ntu60_xsub_no_ctr`, `ntu60_xsub_no_dynamic`.
 
 Baseline ablation uses the same dataset presets:
 

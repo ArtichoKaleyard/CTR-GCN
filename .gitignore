@@ -34,6 +34,8 @@ weights/
 *.npy
 *.npz
 data/nturgbd_raw/
+data/ntu
+data/ntu_legacy_scripts/
 data/NW-UCLA/all_sqe/
 
 # IDE

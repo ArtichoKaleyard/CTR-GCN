@@ -1,8 +1,8 @@
 data_root: ./data/ntu
-output_dir: ./artifacts/skeleton/ntu60_ctrgcn_xsub_bone
+output_dir: ./artifacts/skeleton/ntu60_ctrgcn_xsub_joint_motion
 dataset: ntu60
 protocol: xsub
-stream: bone
+stream: joint_motion
 model: ctrgcn
 graph_layout: ntu-rgb+d
 graph_strategy: spatial

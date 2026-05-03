@@ -62,10 +62,14 @@ _EXPERIMENT_FILES = {
     "ntu120_xset": "ntu120_xset_joint.yaml",
     "nw_ucla": "nw_ucla_xview_joint.yaml",
     "ntu60_xsub_bone": "ntu60_xsub_bone.yaml",
+    "ntu60_xsub_joint_motion": "ntu60_xsub_joint_motion.yaml",
+    "ntu60_xsub_bone_motion": "ntu60_xsub_bone_motion.yaml",
     "ntu60_xview_bone": "ntu60_xview_bone.yaml",
     "ntu120_xsub_bone": "ntu120_xsub_bone.yaml",
     "ntu120_xset_bone": "ntu120_xset_bone.yaml",
     "nw_ucla_bone": "nw_ucla_xview_bone.yaml",
+    "ntu60_xsub_no_ctr": "ntu60_xsub_no_channel_topology.yaml",
+    "ntu60_xsub_no_dynamic": "ntu60_xsub_no_dynamic.yaml",
 }
 
 
@@ -160,6 +164,7 @@ def _resolve_common_model_params(model_params: dict[str, Any]) -> dict[str, Any]
     in_channels = int(model_params.get("in_channels", dataset_spec.in_channels or 3))
     dropout = float(model_params.get("dropout", 0.0))
     adaptive = bool(model_params.get("adaptive", True))
+    use_channel_topology = bool(model_params.get("use_channel_topology", True))
 
     return dict(
         num_class=num_class,
@@ -168,6 +173,7 @@ def _resolve_common_model_params(model_params: dict[str, Any]) -> dict[str, Any]
         in_channels=in_channels,
         drop_out=dropout,
         adaptive=adaptive,
+        use_channel_topology=use_channel_topology,
     )
 
 
@@ -267,6 +273,10 @@ def register_ctrgcn() -> None:
     """注册本项目的全部 CTR-GCN 相关模型。
 
     这个兼容入口让外部脚本只需调用一个短函数，就能同时注册主模型和消融
-    baseline。
+    baseline。模块导入时自动执行，无需手动调用。
     """
     register_ctrgcn_models()
+
+
+# 模块导入即注册，确保 ``--register-module foundry_entry`` 能生效
+register_ctrgcn_models()

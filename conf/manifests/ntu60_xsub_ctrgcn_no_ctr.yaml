@@ -1,0 +1,12 @@
+name: ntu60_xsub_ctrgcn_no_ctr
+output_dir: ./artifacts/experiments/ntu60_xsub_ctrgcn_no_ctr
+stop_on_failure: true
+
+runs:
+  - name: train
+    mode: skeleton
+    config_dir: ./conf/experiments
+    config_name: ntu60_xsub_no_ctr
+    register_callables:
+      - foundry_entry:register_ctrgcn
+    resolved_model_name: ctrgcn

@@ -11,10 +11,13 @@ epochs: 65
 dataset_params:
   data_file: data.npy
   label_file: labels.pkl
+  window_size: 64
+  p_interval: [0.5, 1.0]
+  random_rot: true
 loader:
-  batch_size: 64
-  num_workers: 8
-  persistent_workers: true
+  batch_size: 16
+  num_workers: 0
+  persistent_workers: false
 optimizer:
   name: sgd
   learning_rate: 0.1
@@ -31,3 +34,4 @@ runtime:
   device: cuda
   seed: 1
   checkpoint_interval: 1
+  grad_accum_steps: 4

@@ -1,5 +1,21 @@
 # Project Memory
 
+## 2026-05-02 - Foundry skeleton preprocessing and motion streams
+- Context: CTR-GCN NTU60 reproduction needed Foundry data input closer to the original feeder path and separate `joint_motion` / `bone_motion` streams.
+- Decision: Pin Foundry to v0.3.9 and use dataset-level preprocessing params (`window_size`, `p_interval`, `random_rot`) plus first-class motion stream names.
+- Why: Preprocessing belongs in the skeleton dataset layer before modality construction; training callbacks are too late for per-sample valid-frame crop/resize.
+- Action/Command: Ran `uv lock --upgrade-package foundry` and `uv sync`, then added NTU60 xsub motion configs and preprocessing params.
+- Verification: CPU single-worker DataLoader smoke checks produced `(B, 3, 64, 25, 2)` for `joint`, `bone`, `joint_motion`, `bone_motion`, `no_ctr`, and `no_dynamic`; CUDA single-batch forward/backward passed with `batch_size=16`.
+- Follow-up: Use the same Foundry v0.3.9 params when adding xview/NTU120 motion configs. On current WSL2, keep these long-running configs at `num_workers: 0` / `persistent_workers: false`; CUDA 4-batch pressure tests showed `num_workers: 0` at about 1.5 GB RSS, `num_workers: 2` spiking to about 28.7 GB RSS, and `num_workers: 4` getting killed with exit 137.
+
+## 2026-05-03 - NTU60 xsub four-stream fusion result
+- Context: After all NTU60 xsub CTR-GCN streams finished, per-sample validation logits were needed for four-stream fusion.
+- Decision: Export scores from Foundry best checkpoints with `scripts/export_ctrgcn_scores.py`, writing legacy `epoch1_test_score.pkl` files beside each stream artifact.
+- Why: Foundry summaries report per-stream accuracy but do not provide the score pickle expected by the old `ensemble.py` workflow.
+- Action/Command: `uv run python scripts/export_ctrgcn_scores.py --batch-size 64 --device cuda`.
+- Verification: Exported 16,487 validation samples for joint, bone, joint_motion, and bone_motion. With config-default eval crop (`p=1.0`), weighted fusion `{joint: 0.6, bone: 0.6, joint_motion: 0.4, bone_motion: 0.4}` produced top1 90.0103% and top5 98.2896%. Re-exporting with official-style eval crop `p_interval=[0.95]` produced top1 90.2469% and top5 98.3805%, with scores saved as `epoch1_test_score_p095.pkl`.
+- Follow-up: If reporting against paper numbers, note that this is the Foundry preprocessing/checkpoint reproduction result, not the original training stack.
+
 ## 2026-04-30 - Scope Foundry modernization around active models
 - Context: Review clarified that the goal is not to preserve the old custom training stack, but to modernize active models for Foundry and PyTorch 2.11.
 - Decision: Keep and modernize `model/baseline.py` because it is needed for ablation; remove the legacy `main.py` path instead of carrying a half-maintained CLI.

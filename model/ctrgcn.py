@@ -260,6 +260,7 @@ class CTRGC(nn.Module):
         out_channels: int,
         rel_reduction: int = 8,
         mid_reduction: int = 1,
+        use_channel_topology: bool = True,
     ) -> None:
         """创建通道级拓扑优化图卷积层。
 
@@ -268,19 +269,22 @@ class CTRGC(nn.Module):
             out_channels: 输出通道数。
             rel_reduction: 关系通道数的除数因子。
             mid_reduction: 中间通道除数因子（保留参数，当前未使用）。
+            use_channel_topology: 启用通道级动态拓扑。关闭后退化为标准 GCN。
         """
         super(CTRGC, self).__init__()
+        self.use_channel_topology = use_channel_topology
         self.in_channels = in_channels
         self.out_channels = out_channels
-        if in_channels == 3 or in_channels == 9:
-            self.rel_channels = 8
-        else:
-            self.rel_channels = in_channels // rel_reduction
-        self.conv1 = nn.Conv2d(self.in_channels, self.rel_channels, kernel_size=1)
-        self.conv2 = nn.Conv2d(self.in_channels, self.rel_channels, kernel_size=1)
         self.conv3 = nn.Conv2d(self.in_channels, self.out_channels, kernel_size=1)
-        self.conv4 = nn.Conv2d(self.rel_channels, self.out_channels, kernel_size=1)
-        self.tanh = nn.Tanh()
+        if self.use_channel_topology:
+            if in_channels == 3 or in_channels == 9:
+                self.rel_channels = 8
+            else:
+                self.rel_channels = in_channels // rel_reduction
+            self.conv1 = nn.Conv2d(self.in_channels, self.rel_channels, kernel_size=1)
+            self.conv2 = nn.Conv2d(self.in_channels, self.rel_channels, kernel_size=1)
+            self.conv4 = nn.Conv2d(self.rel_channels, self.out_channels, kernel_size=1)
+            self.tanh = nn.Tanh()
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
                 conv_init(m)
@@ -288,19 +292,13 @@ class CTRGC(nn.Module):
                 bn_init(m, 1)
 
     def forward(self, x: torch.Tensor, A: torch.Tensor | None = None, alpha: torch.Tensor | float = 1) -> torch.Tensor:
-        """执行通道级拓扑优化图卷积。
-
-        Args:
-            x: 形状为 ``(N, C, T, V)`` 的输入张量。
-            A: 形状为 ``(V, V)`` 的静态邻接矩阵子集，可为 ``None``。
-            alpha: 动态拓扑缩放系数。
-
-        Returns:
-            形状为 ``(N, out_channels, T, V)`` 的输出张量。
-        """
-        x1, x2, x3 = self.conv1(x).mean(-2), self.conv2(x).mean(-2), self.conv3(x)
-        x1 = self.tanh(x1.unsqueeze(-1) - x2.unsqueeze(-2))
-        x1 = self.conv4(x1) * alpha + (A.unsqueeze(0).unsqueeze(0) if A is not None else 0)  # N,C,V,V
+        x3 = self.conv3(x)
+        if self.use_channel_topology:
+            x1, x2 = self.conv1(x).mean(-2), self.conv2(x).mean(-2)
+            x1 = self.tanh(x1.unsqueeze(-1) - x2.unsqueeze(-2))
+            x1 = self.conv4(x1) * alpha + (A.unsqueeze(0).unsqueeze(0) if A is not None else 0)
+        else:
+            x1 = A.unsqueeze(0).unsqueeze(0) if A is not None else 0
         x1 = torch.einsum('ncuv,nctv->nctu', x1, x3)
         return x1
 
@@ -353,6 +351,7 @@ class unit_gcn(nn.Module):
         coff_embedding: int = 4,
         adaptive: bool = True,
         residual: bool = True,
+        use_channel_topology: bool = True,
     ) -> None:
         """创建 CTR-GCN 图卷积块。
 
@@ -363,6 +362,7 @@ class unit_gcn(nn.Module):
             coff_embedding: 中间通道压缩系数。
             adaptive: 是否把邻接矩阵作为可学习参数。
             residual: 是否启用残差连接。
+            use_channel_topology: 是否启用通道级动态拓扑。
         """
         super(unit_gcn, self).__init__()
         inter_channels = out_channels // coff_embedding
@@ -373,7 +373,7 @@ class unit_gcn(nn.Module):
         self.num_subset = A.shape[0]
         self.convs = nn.ModuleList()
         for i in range(self.num_subset):
-            self.convs.append(CTRGC(in_channels, out_channels))
+            self.convs.append(CTRGC(in_channels, out_channels, use_channel_topology=use_channel_topology))
 
         if residual:
             if in_channels != out_channels:
@@ -441,6 +441,7 @@ class TCN_GCN_unit(nn.Module):
         adaptive: bool = True,
         kernel_size: int = 5,
         dilations: list[int] = [1, 2],
+        use_channel_topology: bool = True,
     ) -> None:
         """创建残差图时序块。
 
@@ -453,9 +454,10 @@ class TCN_GCN_unit(nn.Module):
             adaptive: 图卷积块是否学习邻接矩阵参数。
             kernel_size: 多尺度时间卷积的卷积核大小。
             dilations: 多尺度时间卷积分支的膨胀系数列表。
+            use_channel_topology: 是否启用通道级动态拓扑。
         """
         super(TCN_GCN_unit, self).__init__()
-        self.gcn1 = unit_gcn(in_channels, out_channels, A, adaptive=adaptive)
+        self.gcn1 = unit_gcn(in_channels, out_channels, A, adaptive=adaptive, use_channel_topology=use_channel_topology)
         self.tcn1 = MultiScale_TemporalConv(out_channels, out_channels, kernel_size=kernel_size, stride=stride, dilations=dilations,
                                             residual=False)
         self.relu = nn.ReLU(inplace=True)
@@ -500,6 +502,7 @@ class Model(nn.Module):
         drop_out: float = 0,
         adaptive: bool = True,
         adjacency: np.ndarray | torch.Tensor | None = None,
+        use_channel_topology: bool = True,
     ) -> None:
         """创建 CTR-GCN 分类器。
 
@@ -511,8 +514,10 @@ class Model(nn.Module):
             graph_args: 传给旧式图类的可选关键字参数。
             in_channels: 每个关节点的输入通道数。
             drop_out: 分类器前的 dropout 概率。``0`` 表示关闭 dropout。
-            adaptive: 图卷积块是否学习通道级拓扑修正。
+            adaptive: 图卷积块是否学习邻接矩阵参数。
             adjacency: 可选的显式邻接矩阵，形状为 ``(K, V, V)``。
+            use_channel_topology: 是否启用通道级动态拓扑。关闭后 CTRGC
+                退化为标准 GCN（保留骨架图先验和残差结构）。
 
         Raises:
             ValueError: 当 ``graph`` 和 ``adjacency`` 都未提供时抛出。
@@ -539,16 +544,17 @@ class Model(nn.Module):
         self.data_bn = nn.BatchNorm1d(num_person * in_channels * num_point)
 
         base_channel = 64
-        self.l1 = TCN_GCN_unit(in_channels, base_channel, A, residual=False, adaptive=adaptive)
-        self.l2 = TCN_GCN_unit(base_channel, base_channel, A, adaptive=adaptive)
-        self.l3 = TCN_GCN_unit(base_channel, base_channel, A, adaptive=adaptive)
-        self.l4 = TCN_GCN_unit(base_channel, base_channel, A, adaptive=adaptive)
-        self.l5 = TCN_GCN_unit(base_channel, base_channel*2, A, stride=2, adaptive=adaptive)
-        self.l6 = TCN_GCN_unit(base_channel*2, base_channel*2, A, adaptive=adaptive)
-        self.l7 = TCN_GCN_unit(base_channel*2, base_channel*2, A, adaptive=adaptive)
-        self.l8 = TCN_GCN_unit(base_channel*2, base_channel*4, A, stride=2, adaptive=adaptive)
-        self.l9 = TCN_GCN_unit(base_channel*4, base_channel*4, A, adaptive=adaptive)
-        self.l10 = TCN_GCN_unit(base_channel*4, base_channel*4, A, adaptive=adaptive)
+        kws = dict(adaptive=adaptive, use_channel_topology=use_channel_topology)
+        self.l1 = TCN_GCN_unit(in_channels, base_channel, A, residual=False, **kws)
+        self.l2 = TCN_GCN_unit(base_channel, base_channel, A, **kws)
+        self.l3 = TCN_GCN_unit(base_channel, base_channel, A, **kws)
+        self.l4 = TCN_GCN_unit(base_channel, base_channel, A, **kws)
+        self.l5 = TCN_GCN_unit(base_channel, base_channel*2, A, stride=2, **kws)
+        self.l6 = TCN_GCN_unit(base_channel*2, base_channel*2, A, **kws)
+        self.l7 = TCN_GCN_unit(base_channel*2, base_channel*2, A, **kws)
+        self.l8 = TCN_GCN_unit(base_channel*2, base_channel*4, A, stride=2, **kws)
+        self.l9 = TCN_GCN_unit(base_channel*4, base_channel*4, A, **kws)
+        self.l10 = TCN_GCN_unit(base_channel*4, base_channel*4, A, **kws)
 
         self.fc = nn.Linear(base_channel*4, num_class)
         nn.init.normal_(self.fc.weight, 0, math.sqrt(2. / num_class))

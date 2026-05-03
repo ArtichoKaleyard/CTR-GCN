@@ -1,0 +1,12 @@
+name: ntu60_xsub_ctrgcn_joint_motion
+output_dir: ./artifacts/experiments/ntu60_xsub_ctrgcn_joint_motion
+stop_on_failure: true
+
+runs:
+  - name: train
+    mode: skeleton
+    config_dir: ./conf/experiments
+    config_name: ntu60_xsub_joint_motion
+    register_callables:
+      - foundry_entry:register_ctrgcn
+    resolved_model_name: ctrgcn
