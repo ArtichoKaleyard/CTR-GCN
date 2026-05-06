@@ -1,5 +1,13 @@
 # Project Memory
 
+## 2026-05-06 - NTU60 xsub pure Q topology ablation
+- Context: CTR-GCN topology ablation needed the paper-level pure Q variant, matching `R = A + alpha * Q` with the shared topology prior `A` removed.
+- Decision: Add `use_shared_topology: false` for `ntu60_xsub_q_only`, while keeping channel-wise topology `Q` and the original trainable `alpha` gate.
+- Why: This isolates the channel-specific refinement term from the shared topology prior and makes the joint-stream topology ablation set more complete.
+- Action/Command: Trained `bash run.sh ntu60_xsub_q_only` for 65 epochs and inspected `gcn1.alpha` values from `best.pt`.
+- Verification: Best/final validation accuracy was 85.5462%. The final 10 `gcn1.alpha` values ranged from -0.2252 to 0.2069 with absolute mean 0.1472, so the pure Q path learned non-zero topology weights.
+- Follow-up: In reports, describe this as pure `alpha * Q`, not as disabling dynamic topology; `Q` remains input-dependent channel-wise topology.
+
 ## 2026-05-02 - Foundry skeleton preprocessing and motion streams
 - Context: CTR-GCN NTU60 reproduction needed Foundry data input closer to the original feeder path and separate `joint_motion` / `bone_motion` streams.
 - Decision: Pin Foundry to v0.3.9 and use dataset-level preprocessing params (`window_size`, `p_interval`, `random_rot`) plus first-class motion stream names.

@@ -66,12 +66,13 @@ Foundry 验证集顺序为 `shuffle=False`，因此四流 score 可以按样本�
 
 ## 训练命令
 
-三组 joint 单流消融：
+四组 joint 单流消融：
 
 ```bash
 bash run.sh ntu60_xsub_joint
 bash run.sh ntu60_xsub_no_channel_topology
 bash run.sh ntu60_xsub_no_dynamic
+bash run.sh ntu60_xsub_q_only
 ```
 
 full CTR-GCN 四流中的其他三流：
@@ -103,6 +104,7 @@ uv run python scripts/export_ctrgcn_scores.py \
 | full CTR-GCN joint | `artifacts/skeleton/ntu60_ctrgcn_xsub_joint` | 59 | 87.0625% | 86.6986% |
 | no channel topology | `artifacts/skeleton/ntu60_ctrgcn_xsub_no_ctr_joint` | 63 | 86.7653% | 86.5106% |
 | no learnable topology | `artifacts/skeleton/ntu60_ctrgcn_xsub_no_dynamic_joint` | 60 | 86.2134% | 85.8434% |
+| pure Q topology | `artifacts/skeleton/ntu60_ctrgcn_xsub_q_only` | 65 | 85.5462% | 85.5462% |
 | full CTR-GCN bone | `artifacts/skeleton/ntu60_ctrgcn_xsub_bone` | 62 | 88.3605% | 88.3120% |
 | full CTR-GCN joint motion | `artifacts/skeleton/ntu60_ctrgcn_xsub_joint_motion` | 60 | 84.8123% | 84.8001% |
 | full CTR-GCN bone motion | `artifacts/skeleton/ntu60_ctrgcn_xsub_bone_motion` | 61 | 85.4308% | 85.0306% |
@@ -114,8 +116,11 @@ uv run python scripts/export_ctrgcn_scores.py \
 | full CTR-GCN joint | 87.0625% | 0.0000 pp |
 | no channel topology | 86.7653% | -0.2972 pp |
 | no learnable topology | 86.2134% | -0.8491 pp |
+| pure Q topology | 85.5462% | -1.5163 pp |
 
-这说明在当前 Foundry 复现口径下，可学习拓扑对 joint 单流的影响更明显；关闭通道级拓扑也有下降，但幅度较小。
+其中 pure Q topology 对齐论文中 `R = A + alpha * Q` 的拆项语义：移除共享拓扑先验 `A`，保留通道级相关性拓扑 `alpha * Q`。该实验的最终 `alpha` 没有停在 0；`best.pt` 中 10 个 `gcn1.alpha` 的范围为 `[-0.2252, 0.2069]`，绝对值均值为 `0.1472`。
+
+这说明在当前 Foundry 复现口径下，完整的 `A + alpha * Q` 组合仍然最好；只保留共享拓扑 `A` 的 no channel topology 下降最小，固定共享拓扑的 no learnable topology 下降更明显，去掉共享拓扑先验后只保留 `alpha * Q` 的 pure Q topology 下降最大。
 
 ## 四流融合结果
 
@@ -182,6 +187,7 @@ artifacts/skeleton/ntu60_ctrgcn_xsub_joint_motion
 artifacts/skeleton/ntu60_ctrgcn_xsub_bone_motion
 artifacts/skeleton/ntu60_ctrgcn_xsub_no_ctr_joint
 artifacts/skeleton/ntu60_ctrgcn_xsub_no_dynamic_joint
+artifacts/skeleton/ntu60_ctrgcn_xsub_q_only
 ```
 
 四流 score 文件：
@@ -207,6 +213,7 @@ conf/experiments/ntu60_xsub_joint_motion.yaml
 conf/experiments/ntu60_xsub_bone_motion.yaml
 conf/experiments/ntu60_xsub_no_channel_topology.yaml
 conf/experiments/ntu60_xsub_no_dynamic.yaml
+conf/experiments/ntu60_xsub_q_only.yaml
 
 conf/manifests/ntu60_xsub_ctrgcn_joint.yaml
 conf/manifests/ntu60_xsub_ctrgcn_bone.yaml
@@ -214,6 +221,7 @@ conf/manifests/ntu60_xsub_ctrgcn_joint_motion.yaml
 conf/manifests/ntu60_xsub_ctrgcn_bone_motion.yaml
 conf/manifests/ntu60_xsub_ctrgcn_no_ctr.yaml
 conf/manifests/ntu60_xsub_ctrgcn_no_dynamic.yaml
+conf/manifests/ntu60_xsub_ctrgcn_q_only.yaml
 ```
 
 ## 与论文和官方仓库的对齐情况
@@ -247,7 +255,7 @@ conf/manifests/ntu60_xsub_ctrgcn_no_dynamic.yaml
 本次实验已经足够支撑两个结论：
 
 1. 当前仓库具备复现 CTR-GCN 多流训练、joint 单流拓扑消融和四流融合评估的完整工程链路。
-2. 在 Foundry 现代化链路下，NTU60 xsub 四流融合达到 90.2469% Top-1；消融显示关闭可学习拓扑造成的 joint 单流下降大于关闭通道级拓扑。
+2. 在 Foundry 现代化链路下，NTU60 xsub 四流融合达到 90.2469% Top-1；消融显示 `A + alpha * Q` 的完整拓扑最好，纯 Q 拓扑下降最大。
 
 如果继续追求论文数值，下一步优先级为：
 

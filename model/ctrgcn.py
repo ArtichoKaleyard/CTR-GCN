@@ -261,6 +261,7 @@ class CTRGC(nn.Module):
         rel_reduction: int = 8,
         mid_reduction: int = 1,
         use_channel_topology: bool = True,
+        use_shared_topology: bool = True,
     ) -> None:
         """创建通道级拓扑优化图卷积层。
 
@@ -270,9 +271,11 @@ class CTRGC(nn.Module):
             rel_reduction: 关系通道数的除数因子。
             mid_reduction: 中间通道除数因子（保留参数，当前未使用）。
             use_channel_topology: 启用通道级动态拓扑。关闭后退化为标准 GCN。
+            use_shared_topology: 启用共享拓扑 A。关闭后仅使用 α·Q（纯 Q 消融）。
         """
         super(CTRGC, self).__init__()
         self.use_channel_topology = use_channel_topology
+        self.use_shared_topology = use_shared_topology
         self.in_channels = in_channels
         self.out_channels = out_channels
         self.conv3 = nn.Conv2d(self.in_channels, self.out_channels, kernel_size=1)
@@ -296,7 +299,9 @@ class CTRGC(nn.Module):
         if self.use_channel_topology:
             x1, x2 = self.conv1(x).mean(-2), self.conv2(x).mean(-2)
             x1 = self.tanh(x1.unsqueeze(-1) - x2.unsqueeze(-2))
-            x1 = self.conv4(x1) * alpha + (A.unsqueeze(0).unsqueeze(0) if A is not None else 0)
+            x1 = self.conv4(x1) * alpha
+            if self.use_shared_topology:
+                x1 = x1 + (A.unsqueeze(0).unsqueeze(0) if A is not None else 0)
         else:
             x1 = A.unsqueeze(0).unsqueeze(0) if A is not None else 0
         x1 = torch.einsum('ncuv,nctv->nctu', x1, x3)
@@ -352,6 +357,7 @@ class unit_gcn(nn.Module):
         adaptive: bool = True,
         residual: bool = True,
         use_channel_topology: bool = True,
+        use_shared_topology: bool = True,
     ) -> None:
         """创建 CTR-GCN 图卷积块。
 
@@ -363,6 +369,7 @@ class unit_gcn(nn.Module):
             adaptive: 是否把邻接矩阵作为可学习参数。
             residual: 是否启用残差连接。
             use_channel_topology: 是否启用通道级动态拓扑。
+            use_shared_topology: 是否启用共享拓扑 A。
         """
         super(unit_gcn, self).__init__()
         inter_channels = out_channels // coff_embedding
@@ -373,7 +380,7 @@ class unit_gcn(nn.Module):
         self.num_subset = A.shape[0]
         self.convs = nn.ModuleList()
         for i in range(self.num_subset):
-            self.convs.append(CTRGC(in_channels, out_channels, use_channel_topology=use_channel_topology))
+            self.convs.append(CTRGC(in_channels, out_channels, use_channel_topology=use_channel_topology, use_shared_topology=use_shared_topology))
 
         if residual:
             if in_channels != out_channels:
@@ -442,6 +449,7 @@ class TCN_GCN_unit(nn.Module):
         kernel_size: int = 5,
         dilations: list[int] = [1, 2],
         use_channel_topology: bool = True,
+        use_shared_topology: bool = True,
     ) -> None:
         """创建残差图时序块。
 
@@ -455,9 +463,10 @@ class TCN_GCN_unit(nn.Module):
             kernel_size: 多尺度时间卷积的卷积核大小。
             dilations: 多尺度时间卷积分支的膨胀系数列表。
             use_channel_topology: 是否启用通道级动态拓扑。
+            use_shared_topology: 是否启用共享拓扑 A。
         """
         super(TCN_GCN_unit, self).__init__()
-        self.gcn1 = unit_gcn(in_channels, out_channels, A, adaptive=adaptive, use_channel_topology=use_channel_topology)
+        self.gcn1 = unit_gcn(in_channels, out_channels, A, adaptive=adaptive, use_channel_topology=use_channel_topology, use_shared_topology=use_shared_topology)
         self.tcn1 = MultiScale_TemporalConv(out_channels, out_channels, kernel_size=kernel_size, stride=stride, dilations=dilations,
                                             residual=False)
         self.relu = nn.ReLU(inplace=True)
@@ -503,6 +512,7 @@ class Model(nn.Module):
         adaptive: bool = True,
         adjacency: np.ndarray | torch.Tensor | None = None,
         use_channel_topology: bool = True,
+        use_shared_topology: bool = True,
     ) -> None:
         """创建 CTR-GCN 分类器。
 
@@ -518,6 +528,8 @@ class Model(nn.Module):
             adjacency: 可选的显式邻接矩阵，形状为 ``(K, V, V)``。
             use_channel_topology: 是否启用通道级动态拓扑。关闭后 CTRGC
                 退化为标准 GCN（保留骨架图先验和残差结构）。
+            use_shared_topology: 是否启用共享拓扑 A。关闭后仅使用 α·Q
+                （纯 Q 消融）。
 
         Raises:
             ValueError: 当 ``graph`` 和 ``adjacency`` 都未提供时抛出。
@@ -544,7 +556,7 @@ class Model(nn.Module):
         self.data_bn = nn.BatchNorm1d(num_person * in_channels * num_point)
 
         base_channel = 64
-        kws = dict(adaptive=adaptive, use_channel_topology=use_channel_topology)
+        kws = dict(adaptive=adaptive, use_channel_topology=use_channel_topology, use_shared_topology=use_shared_topology)
         self.l1 = TCN_GCN_unit(in_channels, base_channel, A, residual=False, **kws)
         self.l2 = TCN_GCN_unit(base_channel, base_channel, A, **kws)
         self.l3 = TCN_GCN_unit(base_channel, base_channel, A, **kws)

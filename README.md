@@ -60,7 +60,8 @@ train_once(run_config)
 
 Available presets: `ntu60_xsub`, `ntu60_xsub_bone`, `ntu60_xsub_joint_motion`,
 `ntu60_xsub_bone_motion`, `ntu60_xview`, `ntu120_xsub`, `ntu120_xset`, `nw_ucla`.
-Topology ablation presets: `ntu60_xsub_no_ctr`, `ntu60_xsub_no_dynamic`.
+Topology ablation presets: `ntu60_xsub_no_ctr`, `ntu60_xsub_no_dynamic`,
+`ntu60_xsub_q_only`.
 
 Baseline ablation uses the same dataset presets:
 

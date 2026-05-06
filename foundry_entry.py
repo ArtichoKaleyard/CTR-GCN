@@ -70,6 +70,7 @@ _EXPERIMENT_FILES = {
     "nw_ucla_bone": "nw_ucla_xview_bone.yaml",
     "ntu60_xsub_no_ctr": "ntu60_xsub_no_channel_topology.yaml",
     "ntu60_xsub_no_dynamic": "ntu60_xsub_no_dynamic.yaml",
+    "ntu60_xsub_q_only": "ntu60_xsub_q_only.yaml",
 }
 
 
@@ -164,7 +165,6 @@ def _resolve_common_model_params(model_params: dict[str, Any]) -> dict[str, Any]
     in_channels = int(model_params.get("in_channels", dataset_spec.in_channels or 3))
     dropout = float(model_params.get("dropout", 0.0))
     adaptive = bool(model_params.get("adaptive", True))
-    use_channel_topology = bool(model_params.get("use_channel_topology", True))
 
     return dict(
         num_class=num_class,
@@ -173,7 +173,6 @@ def _resolve_common_model_params(model_params: dict[str, Any]) -> dict[str, Any]
         in_channels=in_channels,
         drop_out=dropout,
         adaptive=adaptive,
-        use_channel_topology=use_channel_topology,
     )
 
 
@@ -210,8 +209,15 @@ def _resolve_ctrgcn_params(model_params: dict[str, Any]) -> dict[str, Any]:
         normalization=graph_params.get("normalization", "partition-wise"),
     )
     adjacency = graph.adjacency  # (3, V, V) ndarray
+    use_channel_topology = bool(model_params.get("use_channel_topology", True))
+    use_shared_topology = bool(model_params.get("use_shared_topology", True))
 
-    return {**_resolve_common_model_params(model_params), "adjacency": adjacency}
+    return {
+        **_resolve_common_model_params(model_params),
+        "adjacency": adjacency,
+        "use_channel_topology": use_channel_topology,
+        "use_shared_topology": use_shared_topology,
+    }
 
 
 def build_ctrgcn_model(
